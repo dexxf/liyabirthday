@@ -32,6 +32,9 @@ import renemamaAudio from '../../assets/music/renemama.mp3'
 import reneAudio from '../../assets/music/renepagasangpilipinas.mp3'
 import bigDreamAudio from '../../assets/music/bigdream.mp3'
 
+// Main background music that loops for the whole game (see MusicPlayer).
+import backgroundMusic from '../../assets/music/background.mp3'
+
 const DEATH_SONG_KEY = 'renemama'
 const GROUND_CHEST_SONG_KEY = 'renepagasangpilipinas'
 const SUMMIT_CHEST_SONG_KEY = 'bigdream'
@@ -46,7 +49,7 @@ export class GameScene extends Phaser.Scene {
   private chestSound: Phaser.Sound.BaseSound | null = null
   private readonly parallax = new Parallax()
   private readonly popup = new RewardPopup()
-  private readonly music = new MusicPlayer()
+  private readonly music = new MusicPlayer(backgroundMusic)
 
   public constructor() { super('GameScene') }
 
@@ -307,7 +310,7 @@ export class GameScene extends Phaser.Scene {
         {
           title: 'wallpaper rene baterbonia',
           imageUrl: summitChestImage,
-          caption: 'gift for u :),,,, welcome! #LiyaAkaSabrinaCarpenter',
+          caption: 'gift for u :),,,, welcome!',
           music: SUMMIT_CHEST_SONG_KEY,
         },
       ),
