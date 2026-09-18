@@ -17,9 +17,6 @@ import dirtRightImage from '../../assets/background/tile-right.png'
 export class GameScene extends Phaser.Scene {
   private player!: Player
   private platforms!: Phaser.Physics.Arcade.StaticGroup
-  private collectibles!: Phaser.Physics.Arcade.StaticGroup
-  private score = 0
-  private scoreText!: Phaser.GameObjects.Text
   private readonly parallax = new Parallax()
 
   public constructor() { super('GameScene') }
@@ -42,15 +39,12 @@ export class GameScene extends Phaser.Scene {
     this.createPlayerAnimations()
     this.createBackground()
     this.createLevel()
-    this.createCollectibles()
 
     this.player = new Player(this, birthdayValley.playerSpawn.x, birthdayValley.playerSpawn.y)
-    this.physics.add.collider(this.player, this.platforms)
-    this.physics.add.overlap(this.player, this.collectibles, this.collectCollectible, undefined, this)
+    this.physics.add.collider(this.player, this.platforms, undefined, this.canLandOnPlatform, this)
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT)
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08)
     this.cameras.main.setDeadzone(300, 160)
-    this.scoreText = this.add.text(1110, 32, 'STARS 0 / 8', { fontFamily: 'Trebuchet MS', fontSize: '18px', color: '#fff8df' }).setScrollFactor(0).setOrigin(1, 0)
   }
 
   public update(): void {
@@ -62,8 +56,6 @@ export class GameScene extends Phaser.Scene {
 private createTextures(): void {
   const graphics = this.make.graphics({ x: 0, y: 0 })
   graphics.generateTexture('player-body', 100, 160)
-  graphics.clear().fillStyle(0xffd05b).fillTriangle(16, 0, 32, 16, 16, 32).fillTriangle(0, 16, 16, 0, 16, 32)
-  graphics.generateTexture('star', 32, 32)
   graphics.destroy()
 }
 
@@ -116,26 +108,12 @@ private createTextures(): void {
     this.platforms = this.physics.add.staticGroup()
     const [ground, ...rest] = birthdayValley.platforms
     this.addPlatform(...ground, false)
-    for (const [x, y, width, height] of rest) this.addPlatform(x, y, width, height)
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT)
-  }
-
-  private createCollectibles(): void {
-    this.collectibles = this.physics.add.staticGroup()
-    for (const { x, y } of birthdayValley.collectibles) {
-      const star = this.collectibles.create(x, y, 'star') as Phaser.Physics.Arcade.Image
-      star.setSize(26, 26).setOffset(3, 3)
-      this.tweens.add({ targets: star, angle: 360, duration: 1800, repeat: -1, ease: 'Linear' })
+    for (const [x, y, width, height] of rest) {
+      const largerWidth = width * 1.1
+      const largerHeight = height * 1.1
+      this.addPlatform(x - (largerWidth - width) / 2, y + (largerHeight - height) / 2, largerWidth, largerHeight)
     }
-  }
-
-  private collectCollectible(
-    _player: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile,
-    collectible: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile,
-  ): void {
-    if ('destroy' in collectible && typeof collectible.destroy === 'function') collectible.destroy()
-    this.score += 1
-    this.scoreText.setText(`STARS ${this.score} / ${birthdayValley.collectibles.length}`)
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT)
   }
 
   private respawnPlayer(): void {
@@ -143,22 +121,47 @@ private createTextures(): void {
     this.player.setVelocity(0, 0)
   }
 
+  private canLandOnPlatform(
+    playerObject: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile,
+    platformObject: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile,
+  ): boolean {
+    const playerBody = this.getArcadeBody(playerObject) as Phaser.Physics.Arcade.Body
+    const platformBody = this.getArcadeBody(platformObject) as Phaser.Physics.Arcade.StaticBody
+
+    // Only resolve the collision when the player's feet crossed the platform's
+    // top while moving downward. This prevents side and underside catches.
+    if (playerBody.velocity.y < 0) return false
+
+    const previousBottom = playerBody.prev.y + playerBody.height
+    return previousBottom <= platformBody.top + 1 && playerBody.bottom >= platformBody.top
+  }
+
+  private getArcadeBody(
+    object: Phaser.Types.Physics.Arcade.GameObjectWithBody | Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody | Phaser.Tilemaps.Tile,
+  ): Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody {
+    if (object instanceof Phaser.Physics.Arcade.Body || object instanceof Phaser.Physics.Arcade.StaticBody) return object
+    if ('body' in object) return object.body as Phaser.Physics.Arcade.Body | Phaser.Physics.Arcade.StaticBody
+    throw new Error('Arcade collision callback received an object without a physics body')
+  }
+
 private addPlatform(x: number, y: number, width: number, height: number, visible = true): void {
   const blockHeight = 32
   const blockWidth = 28 
   const columns = Math.max(2, Math.round(width / blockWidth))
-  const rows = Math.ceil(height / blockHeight)
+  // Use whole, evenly sized rows so a slightly enlarged platform does not
+  // end with a clipped sliver of a tile.
+  const rows = Math.max(1, Math.round(height / blockHeight))
 
   if (visible) {
     const currentWidth = width / columns
+    const currentHeight = height / rows
     for (let row = 0; row < rows; row += 1) {
-      const currentHeight = Math.min(blockHeight, height - row * blockHeight)
       for (let column = 0; column < columns; column += 1) {
         const textureKey =
           column === 0 ? 'platform-block-left' : column === columns - 1 ? 'platform-block-right' : 'platform-block-middle'
         this.add.image(
           x + column * currentWidth + currentWidth / 2,
-          y - height / 2 + row * blockHeight + currentHeight / 2,
+          y - height / 2 + row * currentHeight + currentHeight / 2,
           textureKey,
         ).setDisplaySize(currentWidth, currentHeight)
       }
@@ -166,8 +169,9 @@ private addPlatform(x: number, y: number, width: number, height: number, visible
   }
 
   const collisionTopOffset = 4 // small nudge below the grass-tip gaps; was 20, way overcorrected
+  const collisionWidth = visible ? width * 0.9 : width
   const collision = this.platforms.create(x + width / 2, y - height / 2 + collisionTopOffset + 4, 'platform-block-middle') as Phaser.Physics.Arcade.Image
-  collision.setDisplaySize(width, 8).refreshBody()
+  collision.setDisplaySize(collisionWidth, 8).refreshBody()
   collision.setVisible(false)
 }
 }

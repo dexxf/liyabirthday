@@ -4,6 +4,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly normalVisualScale = 0.48
   private readonly idleVisualScale = 0.44
   private readonly sideJumpVisualScale = 0.576
+  private readonly frontJumpVisualScale = 0.5184
   private readonly moveSpeed = 345
   private readonly jumpVelocity = -610
   private jumpsUsed = 0
@@ -75,7 +76,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.currentAnimation === animation) return
     this.currentAnimation = animation
     const isSideJump = animation !== 'idle' && animation !== 'walk' && animation !== 'front-jump-rise'
-    this.visual.setScale(animation === 'idle' ? this.idleVisualScale : isSideJump ? this.sideJumpVisualScale : this.normalVisualScale)
+    this.visual.setScale(
+      animation === 'idle'
+        ? this.idleVisualScale
+        : animation === 'front-jump-rise'
+          ? this.frontJumpVisualScale
+          : isSideJump
+            ? this.sideJumpVisualScale
+            : this.normalVisualScale,
+    )
     this.visual.play(animation)
   }
 }
