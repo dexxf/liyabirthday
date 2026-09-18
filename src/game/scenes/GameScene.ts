@@ -310,7 +310,7 @@ export class GameScene extends Phaser.Scene {
         {
           title: 'wallpaper rene baterbonia',
           imageUrl: summitChestImage,
-          caption: 'gift for u :),,,, welcome!',
+          caption: 'gift for u :),,,, welcome! #LiyaAkaSabrinaCarpenter',
           music: SUMMIT_CHEST_SONG_KEY,
         },
       ),
