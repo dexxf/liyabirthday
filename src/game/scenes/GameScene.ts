@@ -12,10 +12,16 @@ import jumpSheet from '../../assets/jump-removebg-preview.png'
 import doubleJumpSheet from '../../assets/double_jump-removebg-preview.png'
 import frontJumpSheet from '../../assets/e19521a4-6bfb-49af-89a1-2d776b9d2c5d-removebg-preview.png'
 import cloudImage from '../../assets/background/cloud_transparent-removebg-preview.png'
-import mainBackgroundImage from '../../assets/background/mainbackground.png'
 import dirtLeftImage from '../../assets/background/tile-left.png'
 import dirtMiddleImage from '../../assets/background/tile-middle.png'
 import dirtRightImage from '../../assets/background/tile-right.png'
+
+// Layered background (replaces the old single mainbackground.png).
+// Back to front: sunset -> mountains -> grass/trees -> flowers.
+import sunsetImage from '../../assets/background/main/sunsetmainbackground.jpg'
+import mountainsImage from '../../assets/background/main/mountains-layer2.png'
+import grassTreesImage from '../../assets/background/main/grassfieldwithtrees-layer3.png'
+import flowerFieldsImage from '../../assets/background/main/flower fields layer 4.png'
 
 // ===========================================================================
 // CHEST REWARD IMAGES - the two lines below are the only place these live.
@@ -39,6 +45,24 @@ const DEATH_SONG_KEY = 'renemama'
 const GROUND_CHEST_SONG_KEY = 'renepagasangpilipinas'
 const SUMMIT_CHEST_SONG_KEY = 'bigdream'
 
+// Player is depth 4, chests 3, sparks 6, prompt 20. The flower layer sits above
+// the player (5) so the sprite is hidden behind it.
+const FOREGROUND_DEPTH = 5
+
+// scrollX < 1 = moves slower than the camera (parallax). Set all to 1 to get
+// the old flat behavior. The flower layer must stay at 1 so it lines up with
+// the ground the player walks on.
+//
+// scale: 1 = full panel size. Layers are anchored to the bottom of the world,
+// so scaling grows/shrinks them upward and never lifts them off the ground.
+// drop: fraction of WORLD_HEIGHT to push the layer down (0.08 = 8%).
+const BACKGROUND_LAYERS = [
+  { key: 'bg-sunset', depth: -14, scrollX: 0.15, scale: 1, drop: 0 },
+  { key: 'bg-mountains', depth: -13, scrollX: 0.3, scale: 1.2, drop: 0.10 },
+  { key: 'bg-grass-trees', depth: -12, scrollX: 0.6, scale: 1, drop: 0 },
+  { key: 'bg-flowers', depth: FOREGROUND_DEPTH, scrollX: 1, scale: 0.8, drop: 0 },
+]
+
 export class GameScene extends Phaser.Scene {
   private player!: Player
   private platforms!: Phaser.Physics.Arcade.StaticGroup
@@ -60,7 +84,10 @@ export class GameScene extends Phaser.Scene {
     this.load.spritesheet('player-double-jump', doubleJumpSheet, { frameWidth: 141, frameHeight: 353 })
     this.load.spritesheet('player-front-jump', frontJumpSheet, { frameWidth: 122, frameHeight: 408 })
     this.load.image('background-cloud', cloudImage)
-    this.load.image('main-background', mainBackgroundImage)
+    this.load.image('bg-sunset', sunsetImage)
+    this.load.image('bg-mountains', mountainsImage)
+    this.load.image('bg-grass-trees', grassTreesImage)
+    this.load.image('bg-flowers', flowerFieldsImage)
     this.load.image('platform-block-left', dirtLeftImage)
     this.load.image('platform-block-middle', dirtMiddleImage)
     this.load.image('platform-block-right', dirtRightImage)
@@ -225,12 +252,30 @@ export class GameScene extends Phaser.Scene {
 
   private createBackground(): void {
     const panelWidth = 1350
-    const backgroundShift = this.add.container(0, 0).setDepth(-11)
-    for (let index = 0; index < Math.ceil(WORLD_WIDTH / panelWidth) + 1; index += 1) {
-      const panel = this.add.image(index * panelWidth + panelWidth / 2, WORLD_HEIGHT / 2, 'main-background')
-        .setDisplaySize(panelWidth, WORLD_HEIGHT)
-        .setFlipX(index % 2 === 1)
-      backgroundShift.add(panel)
+    const viewWidth = this.cameras.main.width
+
+    for (const layer of BACKGROUND_LAYERS) {
+      const layerPanelWidth = panelWidth * layer.scale
+      const layerPanelHeight = WORLD_HEIGHT * layer.scale
+      // A layer that scrolls slower needs less width to cover the camera's travel.
+      const coverWidth = viewWidth + layer.scrollX * (WORLD_WIDTH - viewWidth)
+      const panelCount = Math.ceil(coverWidth / layerPanelWidth) + 1
+      const container = this.add.container(0, 0)
+        .setDepth(layer.depth)
+        .setScrollFactor(layer.scrollX, 1)
+      for (let index = 0; index < panelCount; index += 1) {
+        // Bottom-anchored: the panel's bottom edge sits at the world floor
+        // (plus the layer's drop), so scaling only changes how far up it reaches.
+        const panel = this.add.image(
+          index * layerPanelWidth + layerPanelWidth / 2,
+          WORLD_HEIGHT + layer.drop * WORLD_HEIGHT,
+          layer.key,
+        )
+          .setOrigin(0.5, 1)
+          .setDisplaySize(layerPanelWidth, layerPanelHeight)
+          .setFlipX(index % 2 === 1)
+        container.add(panel)
+      }
     }
 
     for (let index = 0; index < 7; index += 1) {
@@ -279,7 +324,8 @@ export class GameScene extends Phaser.Scene {
     for (const { x, count } of groundHazards) {
       for (let index = 0; index < count; index += 1) {
         const spikeX = x + index * spikeWidth + spikeWidth / 2
-        this.add.image(spikeX, GROUND_SURFACE_Y + 2, 'spike').setOrigin(0.5, 1).setDepth(1)
+        // Above the flower layer so the spikes stay visible next to their hitboxes.
+        this.add.image(spikeX, GROUND_SURFACE_Y + 2, 'spike').setOrigin(0.5, 1).setDepth(FOREGROUND_DEPTH + 1)
         const hitbox = this.hazards.create(spikeX, GROUND_SURFACE_Y - 9, 'spike') as Phaser.Physics.Arcade.Image
         hitbox.setDisplaySize(20, 18).refreshBody()
         hitbox.setVisible(false)

@@ -1,10 +1,10 @@
 import Phaser from 'phaser'
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  private readonly normalVisualScale = 0.48
+  private readonly normalVisualScale = 0.5
   private readonly idleVisualScale = 0.44
-  private readonly sideJumpVisualScale = 0.576
-  private readonly frontJumpVisualScale = 0.5184
+  private readonly sideJumpVisualScale = 0.6184
+  private readonly frontJumpVisualScale = 0.6084
   private readonly moveSpeed = 345
   private readonly jumpVelocity = -610
   private jumpsUsed = 0
